@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+    <h1>任务列表:{{ project_obj.title }}-{{ project_obj.get_env_display }}</h1>
+    <a href="{% url 'task_add' project_id=project_obj.pk %}" class="btn btn-primary" style="margin: 10px">添加任务</a>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>唯一标识</th>
+                <th>状态</th>
+                <th>发布</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task_obj in taskList %}
+                <tr>
+                    <td>{{ task_obj.pk }}</td>
+                    <td>{{ task_obj.uid }}</td>
+                    <td>{{ task_obj.get_status_display }}</td>
+                    <td>
+                        <a href="{% url 'deploy_task' task_id=task_obj.pk %}">发布任务</a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% endblock %}
+

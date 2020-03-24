@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% load staticfiles %}
+
+
+{% block content %}
+    <h1>发布任务</h1>
+    {#    展示基本信息#}
+    <a href="#" class="btn btn-primary" onclick="createDiagram()">初始化图表</a>
+    <a href="#" class="btn btn-primary" onclick="releaseTask()">发布任务</a>
+    <table class="table table-hover table-striped table-bordered">
+        <tbody>
+        <tr>
+            <td>项目名称:{{ task_obj.project.title }}</td>
+            <td>环境:{{ task_obj.project.get_env_display }}</td>
+        </tr>
+        <tr>
+            <td>版本:{{ task_obj.tag }}</td>
+            <td>状态:{{ task_obj.get_status_display }}</td>
+        </tr>
+        <tr>
+            <td colspan="2">仓库地址:{{ task_obj.project.repo }}</td>
+        </tr>
+        <tr>
+            <td colspan="2">线上地址:{{ task_obj.project.path }}</td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <div>关联服务器</div>
+                <ul>
+                    {% for server_obj in task_obj.project.servers.all %}
+                        <li>{{ server_obj.hostname }}</li>
+                    {% endfor %}
+
+                </ul>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    {#    渲染gojs区域#}
+    <div id="diagramDiv" style="width:100%; min-height:450px; background-color: #DAE4E4;"></div>
+
+{% endblock %}
+
+
+
+{% block js %}
+    <script src="{% static 'js/go.js' %}"></script>
+
+    <script>
+        // 由于ws和diagram需要在其他函数内使用 所以定义成全局变量
+        var ws;
+        var diagram;
+
+        function initWebSocket() {
+            ws = new WebSocket('ws://127.0.0.1:8000/publish/{{ task_obj.pk }}/');
+
+            // 一旦服务端有消息 会自动触发onmessage方法
+            ws.onmessage = function (args) {
+                // args.data
+                var res = JSON.parse(args.data);
+                if (res.code==='init'){
+                    // 操作gojs渲染图表
+                    diagram.model = new go.TreeModel(res.data)
+                }else if(res.code==='deploy'){
+                    // 修改图表样式
+                    var node = diagram.model.findNodeDataForKey(res.node_id);
+                    diagram.model.setDataProperty(node, "color", res.color);
+
+
+                }
+            }
+        }
+
+        function initTable() {
+            var $ = go.GraphObject.make;
+            diagram = $(go.Diagram, "diagramDiv", {
+                layout: $(go.TreeLayout, {
+                    angle: 0,
+                    nodeSpacing: 20,
+                    layerSpacing: 70
+                })
+            });
+            // 生成一个节点模版
+            diagram.nodeTemplate = $(go.Node, "Auto",
+                $(go.Shape, {
+                    figure: "RoundedRectangle",
+                    fill: 'yellow',
+                    stroke: 'yellow'
+                }, new go.Binding("figure", "figure"), new go.Binding("fill", "color"), new go.Binding("stroke", "color")),
+                $(go.TextBlock, {margin: 8}, new go.Binding("text", "text"))
+            );
+            // 生成一个箭头模版
+            diagram.linkTemplate = $(go.Link,
+                {routing: go.Link.Orthogonal},
+                $(go.Shape, {stroke: 'yellow'}, new go.Binding('stroke', 'link_color')),
+                $(go.Shape, {toArrow: "OpenTriangle", stroke: 'yellow'}, new go.Binding('stroke', 'link_color'))
+            );
+            // 数据集合  以后替换ajax请求   注意使用key和parent来规定箭头的指向
+            {#var nodeDataArray = [#}
+            {#    {key: "start", text: '开始', figure: 'Ellipse', color: "lightgreen"},#}
+            {#    {key: "download", parent: 'start', text: '下载代码', color: "lightgreen", link_text: '执行中...'},#}
+            {#    {key: "compile", parent: 'download', text: '本地编译', color: "lightgreen"},#}
+            {#    {key: "zip", parent: 'compile', text: '打包', color: "red", link_color: 'red'},#}
+            {#    {key: "c1", text: '服务器1', parent: "zip"},#}
+            {#    {key: "c11", text: '服务重启', parent: "c1"},#}
+            {#    {key: "c2", text: '服务器2', parent: "zip"},#}
+            {#    {key: "c21", text: '服务重启', parent: "c2"},#}
+            {#    {key: "c3", text: '服务器3', parent: "zip"},#}
+            {#    {key: "c31", text: '服务重启', parent: "c3"},#}
+            {#];#}
+            {#diagram.model = new go.TreeModel(nodeDataArray);#}
+            // 动态控制节点颜色变化   后端给一个key值 即可查找图表并修改
+
+            /*
+            var node = diagram.model.findNodeDataForKey("zip");
+            diagram.model.setDataProperty(node, "color", "lightgreen");
+            }
+            */
+
+        }
+
+        // 页面加载完毕 先自动执行两个函数 给全局变量赋值
+        $(function () {
+            initWebSocket();
+            initTable()
+        });
+
+        function createDiagram() {
+            //  要初始化的数据
+            ws.send('init')
+        }
+
+        // 执行代码 要动态的数据
+        function releaseTask() {
+            ws.send('deploy')
+        }
+
+
+
+    </script>
+{% endblock %}
